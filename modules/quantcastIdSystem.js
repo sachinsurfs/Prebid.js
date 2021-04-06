@@ -43,7 +43,7 @@ function firePixel() {
       storage.setCookie(QUANTCAST_FPA, fpa, expires, '/', domain, null);
     }
 
-    if(hasGDPRConsent) {
+    if(hasGDPRConsent(QCConsentData)) {
 
       //check for consent
       var pixel = new Image();
