@@ -7,60 +7,10 @@
 
 import {submodule} from '../src/hook.js'
 import { getStorageManager } from '../src/storageManager.js';
-import { findRootDomain } from './userId/index.js';
 
 const QUANTCAST_FPA = '__qca';
-const DEFAULT_COOKIE_EXP_TIME = 392; // (13 months - 2 days), in milliseconds
-const PREBID_PCODE = 'p-KceJUEvXN48CE'; // Not associated with a real account
-const DOMAIN_QSERVE = "https://pixel.quantserve.com/pixel";
-
-var emailHash;
-var cookie_exp_time;
 
 export const storage = getStorageManager();
-
-function firePixel() {
-  // check for presence of Quantcast Measure tag _qevent obj
-  if(!window._qevents) {
-
-    let fpa = storage.getCookie(QUANTCAST_FPA);
-    let fpan = "0";
-    var now = new Date();
-    var domain = findRootDomain();
-    var et = now.getTime();
-    var tzo = now.getTimezoneOffset();
-    var sr = "";
-    var screen = window.screen;
-
-    if (screen) {
-      sr = screen.width + 'x' + screen.height + 'x' + screen.colorDepth;
-    }
-
-    if(!fpa) {
-      var expires = new Date(now.getTime() + (cookie_exp_time * 86400000)).toGMTString();
-      fpa = 'B0-' + Math.round(Math.random() * 2147483647) + '-' + et;
-      fpan = "1";
-      storage.setCookie(QUANTCAST_FPA, fpa, expires, '/', domain, null);
-    }
-
-    //check for consent
-    var pixel = new Image();
-    pixel.src = DOMAIN_QSERVE +
-    "&fpan=" + fpan      +
-    "&fpa="  + fpa       +
-    "&d="    + domain    +
-    "&et="   + et        +
-    "&sr="   + sr        +
-    "&tzo="  + tzo       +
-    "&uh="   + emailHash +
-    "&uht=1" +
-    "&a="  + PREBID_PCODE;
-
-    pixel.onload = function() {
-      pixel = void (0);
-    }; 
-  } 
-};
 
 /** @type {Submodule} */
 export const quantcastIdSubmodule = {
@@ -84,23 +34,9 @@ export const quantcastIdSubmodule = {
    * @function
    * @returns {{id: {quantcastId: string} | undefined}}}
    */
-  getId(config, consentData_) {
-
+  getId() {
     // Consent signals are currently checked on the server side.
     let fpa = storage.getCookie(QUANTCAST_FPA);
-
-    const configParams = (config && config.params) || {};
-    const storageParams = (config && config.storage) || {};
-
-    emailHash = configParams.uh || "";
-    cookie_exp_time = storageParams.expires || DEFAULT_COOKIE_EXP_TIME;
-
-    // Callbacks on Event Listeners won't trigger if the event is already complete so this check is required 
-    if (document.readyState === "complete") {
-      firePixel();
-    } 
-    window.onload = firePixel;
-
     return { id: fpa ? { quantcastId: fpa } : undefined }
   }
 };
