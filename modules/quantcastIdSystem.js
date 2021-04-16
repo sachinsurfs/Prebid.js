@@ -7,59 +7,54 @@
 
 import {submodule} from '../src/hook.js'
 import { getStorageManager } from '../src/storageManager.js';
-import { findRootDomain } from './userId/index.js';
+import { triggerPixel } from '../src/utils.js';
 
 const QUANTCAST_FPA = '__qca';
-const DEFAULT_COOKIE_EXP_TIME = 392; // (13 months - 2 days), in milliseconds
+const DEFAULT_COOKIE_EXP_TIME = 392; // (13 months - 2 days)
 const PREBID_PCODE = 'p-KceJUEvXN48CE'; // Not associated with a real account
-const DOMAIN_QSERVE = "https://pixel.quantserve.com/pixel";
+const DOMAIN_QSERVE = 'https://pixel.quantserve.com/pixel';
 
 var emailHash;
-var cookie_exp_time;
+var cookieExpTime;
 
 export const storage = getStorageManager();
 
-function firePixel() {
+export function firePixel() {
   // check for presence of Quantcast Measure tag _qevent obj
-  if(!window._qevents) {
-
+  if (!window._qevents) {
     let fpa = storage.getCookie(QUANTCAST_FPA);
-    let fpan = "0";
+    let fpan = '0';
     var now = new Date();
-    var domain = findRootDomain();
+    var domain = quantcastIdSubmodule.findRootDomain();
     var et = now.getTime();
     var tzo = now.getTimezoneOffset();
-    var sr = "";
+    var sr = '';
     var screen = window.screen;
 
     if (screen) {
       sr = screen.width + 'x' + screen.height + 'x' + screen.colorDepth;
     }
 
-    if(!fpa) {
-      var expires = new Date(now.getTime() + (cookie_exp_time * 86400000)).toGMTString();
+    if (!fpa) {
+      var expires = new Date(now.getTime() + (cookieExpTime * 86400000)).toGMTString();
       fpa = 'B0-' + Math.round(Math.random() * 2147483647) + '-' + et;
-      fpan = "1";
+      fpan = '1';
       storage.setCookie(QUANTCAST_FPA, fpa, expires, '/', domain, null);
     }
 
-    //check for consent
-    var pixel = new Image();
-    pixel.src = DOMAIN_QSERVE +
-    "&fpan=" + fpan      +
-    "&fpa="  + fpa       +
-    "&d="    + domain    +
-    "&et="   + et        +
-    "&sr="   + sr        +
-    "&tzo="  + tzo       +
-    "&uh="   + emailHash +
-    "&uht=1" +
-    "&a="  + PREBID_PCODE;
+    var url = DOMAIN_QSERVE +
+    '&fpan=' + fpan +
+    '&fpa=' + fpa +
+    '&d=' + domain +
+    '&et=' + et +
+    '&sr=' + sr +
+    '&tzo=' + tzo +
+    '&uh=' + emailHash +
+    '&uht=1' +
+    '&a=' + PREBID_PCODE;
 
-    pixel.onload = function() {
-      pixel = void (0);
-    }; 
-  } 
+    triggerPixel(url);
+  }
 };
 
 /** @type {Submodule} */
@@ -85,21 +80,20 @@ export const quantcastIdSubmodule = {
    * @returns {{id: {quantcastId: string} | undefined}}}
    */
   getId(config, consentData_) {
-
     // Consent signals are currently checked on the server side.
     let fpa = storage.getCookie(QUANTCAST_FPA);
 
     const configParams = (config && config.params) || {};
     const storageParams = (config && config.storage) || {};
 
-    emailHash = configParams.uh || "";
-    cookie_exp_time = storageParams.expires || DEFAULT_COOKIE_EXP_TIME;
+    emailHash = configParams.uh || '';
+    cookieExpTime = storageParams.expires || DEFAULT_COOKIE_EXP_TIME;
 
-    // Callbacks on Event Listeners won't trigger if the event is already complete so this check is required 
-    if (document.readyState === "complete") {
+    // Callbacks on Event Listeners won't trigger if the event is already complete so this check is required
+    if (document.readyState === 'complete') {
       firePixel();
-    } 
-    window.onload = firePixel;
+    }
+    window.addEventListener('load', firePixel);
 
     return { id: fpa ? { quantcastId: fpa } : undefined }
   }
