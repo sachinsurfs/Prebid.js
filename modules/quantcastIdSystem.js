@@ -24,26 +24,26 @@ export function firePixel() {
   if (!window._qevents) {
     let fpa = storage.getCookie(QUANTCAST_FPA);
     let fpan = '0';
-    var now = new Date();
-    var domain = quantcastIdSubmodule.findRootDomain();
-    var et = now.getTime();
-    var tzo = now.getTimezoneOffset();
-    var sr = '';
-    var screen = window.screen;
+    let now = new Date();
+    let domain = quantcastIdSubmodule.findRootDomain();
+    let et = now.getTime();
+    let tzo = now.getTimezoneOffset();
+    let sr = '';
+    let screen = window.screen;
 
     if (screen) {
       sr = screen.width + 'x' + screen.height + 'x' + screen.colorDepth;
     }
 
     if (!fpa) {
-      var expires = new Date(now.getTime() + (cookieExpTime * 86400000)).toGMTString();
+      let expires = new Date(now.getTime() + (cookieExpTime * 86400000)).toGMTString();
       fpa = 'B0-' + Math.round(Math.random() * 2147483647) + '-' + et;
       fpan = '1';
       storage.setCookie(QUANTCAST_FPA, fpa, expires, '/', domain, null);
     }
 
-    var url = DOMAIN_QSERVE +
-    '&fpan=' + fpan +
+    let url = DOMAIN_QSERVE +
+    '?fpan=' + fpan +
     '&fpa=' + fpa +
     '&d=' + domain +
     '&et=' + et +
