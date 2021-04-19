@@ -14,6 +14,7 @@ const DEFAULT_COOKIE_EXP_TIME = 392; // (13 months - 2 days)
 const PREBID_PCODE = 'p-KceJUEvXN48CE'; // Not associated with a real account
 const DOMAIN_QSERVE = 'https://pixel.quantserve.com/pixel';
 
+var emailHash;
 var cookieExpTime;
 
 export const storage = getStorageManager();
@@ -41,6 +42,8 @@ export function firePixel() {
     '&d=' + domain +
     '&et=' + et +
     '&tzo=' + tzo +
+    '&uh=' + emailHash +
+    '&uht=1' +
     '&a=' + PREBID_PCODE;
 
     triggerPixel(url);
@@ -73,8 +76,10 @@ export const quantcastIdSubmodule = {
     // Consent signals are currently checked on the server side.
     let fpa = storage.getCookie(QUANTCAST_FPA);
 
+    const configParams = (config && config.params) || {};
     const storageParams = (config && config.storage) || {};
 
+    emailHash = configParams.uh || '';
     cookieExpTime = storageParams.expires || DEFAULT_COOKIE_EXP_TIME;
 
     // Callbacks on Event Listeners won't trigger if the event is already complete so this check is required
