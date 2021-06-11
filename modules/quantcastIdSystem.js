@@ -8,69 +8,160 @@
 import {submodule} from '../src/hook.js'
 import { getStorageManager } from '../src/storageManager.js';
 import { triggerPixel, deepAccess } from '../src/utils.js';
+import { uspDataHandler, coppaDataHandler, gdprDataHandler } from '../src/adapterManager.js';
 
 const QUANTCAST_FPA = '__qca';
 const DEFAULT_COOKIE_EXP_TIME = 392; // (13 months - 2 days)
 const PREBID_PCODE = 'p-KceJUEvXN48CE'; // Not associated with a real account
 const DOMAIN_QSERVE = 'https://pixel.quantserve.com/pixel';
+const QUANTCAST_VENDOR_ID = '11';
+const PURPOSE_DATA_COLLECT = '1';
+const PURPOSE_PRODUCT_IMPROVEMENT = '10';
 
-var emailHash;
+var clientId;
 var cookieExpTime;
-var globalConsentData;
 
 export const storage = getStorageManager();
 
 export function firePixel() {
-  // check for presence of Quantcast Measure tag _qevent obj
-  if (!window._qevents && hasGDPRConsent(globalConsentData)) {
-    let fpa = storage.getCookie(QUANTCAST_FPA);
-    let fpan = '0';
-    let now = new Date();
-    let domain = quantcastIdSubmodule.findRootDomain();
-    let et = now.getTime();
-    let tzo = now.getTimezoneOffset();
 
-    if (!fpa) {
-      let expires = new Date(now.getTime() + (cookieExpTime * 86400000)).toGMTString();
+  // check for presence of Quantcast Measure tag _qevent obj
+  if (!window._qevents) {
+    const gdprPrivacyString = gdprDataHandler.getConsentData();
+    const usPrivacyString = uspDataHandler.getConsentData();
+
+    var fpa = storage.getCookie(QUANTCAST_FPA),
+     fpan = '0',
+     now = new Date(),
+     domain = quantcastIdSubmodule.findRootDomain(),
+     et = now.getTime(),
+     tzo = now.getTimezoneOffset(),
+     usPrivacyParamString = "",
+     firstPartyParamStrings, 
+     gdprParamStrings;
+
+    if(!hasConsent()) {
+      var expired = new Date(0).toUTCString();
+      fpan = 'u';
+      fpa = '';
+      storage.setCookie(QUANTCAST_FPA, fpa, expired, '/', domain, null);
+    } else if (!fpa) {
+      var expires = new Date(now.getTime() + (cookieExpTime * 86400000)).toGMTString();
       fpa = 'B0-' + Math.round(Math.random() * 2147483647) + '-' + et;
       fpan = '1';
       storage.setCookie(QUANTCAST_FPA, fpa, expires, '/', domain, null);
     }
 
+    firstPartyParamStrings = `&fpan=${fpan}&fpa=${fpa}`;
+    gdprParamStrings = '&gdpr=0';
+    if (!gdprPrivacyString || typeof gdprPrivacyString.gdprApplies !== 'boolean' || !gdprPrivacyString.gdprApplies) {
+      gdprParamStrings = `gdpr=1&gdpr_consent=${gdprPrivacyString.consentString}`;
+    }
+    if (usPrivacyString && typeof usPrivacyString === 'string') {
+      usPrivacyParamString = `&us_privacy=${usPrivacyString}`;
+    }
+
     let url = DOMAIN_QSERVE +
-    '?fpan=' + fpan +
-    '&fpa=' + fpa +
-    '&d=' + domain +
+    '?d=' + domain +
     '&et=' + et +
     '&tzo=' + tzo +
-    '&uh=' + emailHash +
-    '&uht=1' +
-    '&a=' + PREBID_PCODE;
+    '&client_id=' + clientId +
+    '&a=' + PREBID_PCODE +
+    usPrivacyParamString +
+    gdprParamStrings +
+    firstPartyParamStrings;
 
     triggerPixel(url);
   }
 };
 
-/**
- * test if consent module is present, applies, and is valid for cookies (purpose 1 and legitimate interest 10)
- * @param {ConsentData} consentData
- * @returns {boolean}
- */
-function hasGDPRConsent(consentData) {
-  if (consentData && typeof consentData.gdprApplies === 'boolean' && consentData.gdprApplies) {
-    if (!consentData.consentString) {
+function hasConsent() {
+  return hasGDPRConsent() && hasCCPAConsent();
+}    
+
+function hasGDPRConsent() {
+  const gdprConsent = gdprDataHandler.getConsentData();
+
+  // Check for GDPR consent for purpose 1, and drop request if consent has not been given
+  // Remaining consent checks are performed server-side.
+  if (gdprConsent && typeof gdprConsent.gdprApplies === 'boolean' && gdprConsent.gdprApplies) {
+    if (!gdprConsent.vendorData) {
       return false;
     }
-    if (consentData.apiVersion === 1) {
-      if (deepAccess(consentData, 'vendorData.purposeConsents.1') === false && deepAccess(consentData, 'vendorData.purposeLegitimateInterests.10') === false) {
-        return false;
-      }
-    }   
-    if (consentData.apiVersion === 2) {
-       if (deepAccess(consentData, 'vendorData.purpose.consents.1') === false && deepAccess(consentData, 'vendorData.purpose.LegitimateInterests.10') === false) {
-         return false;
-       }
+    if (gdprConsent.apiVersion === 1) {
+      return checkTCFv1(gdprConsent.vendorData);
     }
+    if (gdprConsent.apiVersion === 2) {
+      return checkTCFv2(gdprConsent.vendorData);
+    }
+  }
+  return true;
+}
+
+function checkTCFv1(vendorData) {
+  let vendorConsent = vendorData.vendorConsents && vendorData.vendorConsents[QUANTCAST_VENDOR_ID];
+  let purposeConsent = vendorData.purposeConsents && vendorData.purposeConsents[PURPOSE_DATA_COLLECT] ;
+
+  return !!(vendorConsent && purposeConsent);
+}
+
+function checkTCFv2(tcData) {
+  let vendorConsent = tcData.vendor && tcData.vendor.consents && tcData.vendor.consents[QUANTCAST_VENDOR_ID];
+  let vendorInterest = vendorData.vendor.legitimateInterests && vendorData.vendor.legitimateInterests[QUANTCAST_VENDOR_ID];
+  let restrictions = tcData.publisher ? tcData.publisher.restrictions : {};
+
+  //Restrictions for purpose 1
+  let qcRestriction = restrictions && restrictions[PURPOSE_DATA_COLLECT]
+    ? restrictions[PURPOSE_DATA_COLLECT][QUANTCAST_VENDOR_ID]
+    : null;
+
+  let purposeConsent = tcData.purpose && tcData.purpose.consents && tcData.purpose.consents[PURPOSE_DATA_COLLECT];
+
+  // No consent, not allowed by publisher or requires legitimate interest
+  if (!vendorConsent || !purposeConsent || qcRestriction === 0 || qcRestriction === 2) {
+    return false;
+  }
+
+  //Restrictions for purpose 10
+  qcRestriction = restrictions && restrictions[PURPOSE_PRODUCT_IMPROVEMENT]
+    ? restrictions[PURPOSE_PRODUCT_IMPROVEMENT][QUANTCAST_VENDOR_ID]
+    : null;
+
+  // Not allowed by publisher
+  if (qcRestriction === 0) {
+    return false;
+  }
+
+  // publisher has explicitly restricted to consent
+  if (qcRestriction === 1) {
+    purposeConsent = tcData.purpose && tcData.purpose.consents && tcData.purpose.consents[PURPOSE_PRODUCT_IMPROVEMENT];
+
+    // No consent, or requires legitimate interest
+    if (!vendorConsent || !purposeConsent ) {
+      return false;
+    }
+  } else if (qcRestriction === 2) {
+    let purposeInterest = vendorData.purpose.LegitimateInterests && vendorData.purpose.LegitimateInterests[PURPOSE_PRODUCT_IMPROVEMENT];
+
+    // No legitimate interest, not allowed by publisher or requires legitimate interest
+    if (!vendorInterest || !purposeInterest) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * tests if us_privacy consent string is present, us_privacy applies, and do-not-sell is not set
+ * @returns {boolean}
+ */
+ function hasCCPAConsent() {
+  const consentData = uspDataHandler.getConsentData();
+
+  // TODO : Needs to be revisited
+  if (consentData && consentData !== '1---') {
+    return false
   }
   return true;
 }
@@ -97,16 +188,22 @@ export const quantcastIdSubmodule = {
    * @function
    * @returns {{id: {quantcastId: string} | undefined}}}
    */
-  getId(config, consentData) {
+  getId(config) {
+  
     // Consent signals are currently checked on the server side.
     let fpa = storage.getCookie(QUANTCAST_FPA);
+
+    const coppa = coppaDataHandler.getCoppa();
+    if (coppa) {
+      utils.logInfo('QuantcastId: IDs not provided for coppa requests, exiting QuantcastId');
+      return;
+    }
 
     const configParams = (config && config.params) || {};
     const storageParams = (config && config.storage) || {};
 
-    emailHash = configParams.uh || '';
+    clientId = configParams.clientId || '';
     cookieExpTime = storageParams.expires || DEFAULT_COOKIE_EXP_TIME;
-    globalConsentData = consentData;
 
     // Callbacks on Event Listeners won't trigger if the event is already complete so this check is required
     if (document.readyState === 'complete') {
