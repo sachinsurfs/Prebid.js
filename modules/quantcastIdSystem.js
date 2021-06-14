@@ -7,7 +7,7 @@
 
 import {submodule} from '../src/hook.js'
 import { getStorageManager } from '../src/storageManager.js';
-import { triggerPixel, deepAccess } from '../src/utils.js';
+import { triggerPixel, logInfo } from '../src/utils.js';
 import { uspDataHandler, coppaDataHandler, gdprDataHandler } from '../src/adapterManager.js';
 
 const QUANTCAST_FPA = '__qca';
@@ -24,23 +24,22 @@ var cookieExpTime;
 export const storage = getStorageManager();
 
 export function firePixel() {
-
   // check for presence of Quantcast Measure tag _qevent obj
   if (!window._qevents) {
     const gdprPrivacyString = gdprDataHandler.getConsentData();
     const usPrivacyString = uspDataHandler.getConsentData();
 
-    var fpa = storage.getCookie(QUANTCAST_FPA),
-     fpan = '0',
-     now = new Date(),
-     domain = quantcastIdSubmodule.findRootDomain(),
-     et = now.getTime(),
-     tzo = now.getTimezoneOffset(),
-     usPrivacyParamString = "",
-     firstPartyParamStrings, 
-     gdprParamStrings;
+    var fpa = storage.getCookie(QUANTCAST_FPA);
+    var fpan = '0';
+    var now = new Date();
+    var domain = quantcastIdSubmodule.findRootDomain();
+    var et = now.getTime();
+    var tzo = now.getTimezoneOffset();
+    var usPrivacyParamString = '';
+    var firstPartyParamStrings;
+    var gdprParamStrings;
 
-    if(!hasConsent()) {
+    if (!(hasGDPRConsent(gdprPrivacyString) && hasCCPAConsent(usPrivacyString))) {
       var expired = new Date(0).toUTCString();
       fpan = 'u';
       fpa = '';
@@ -54,7 +53,7 @@ export function firePixel() {
 
     firstPartyParamStrings = `&fpan=${fpan}&fpa=${fpa}`;
     gdprParamStrings = '&gdpr=0';
-    if (!gdprPrivacyString || typeof gdprPrivacyString.gdprApplies !== 'boolean' || !gdprPrivacyString.gdprApplies) {
+    if (gdprPrivacyString && typeof gdprPrivacyString.gdprApplies === 'boolean' && gdprPrivacyString.gdprApplies) {
       gdprParamStrings = `gdpr=1&gdpr_consent=${gdprPrivacyString.consentString}`;
     }
     if (usPrivacyString && typeof usPrivacyString === 'string') {
@@ -75,14 +74,8 @@ export function firePixel() {
   }
 };
 
-function hasConsent() {
-  return hasGDPRConsent() && hasCCPAConsent();
-}    
-
-function hasGDPRConsent() {
-  const gdprConsent = gdprDataHandler.getConsentData();
-
-  // Check for GDPR consent for purpose 1, and drop request if consent has not been given
+export function hasGDPRConsent(gdprConsent) {
+  // Check for GDPR consent for purpose 1 and 10, and drop request if consent has not been given
   // Remaining consent checks are performed server-side.
   if (gdprConsent && typeof gdprConsent.gdprApplies === 'boolean' && gdprConsent.gdprApplies) {
     if (!gdprConsent.vendorData) {
@@ -98,31 +91,31 @@ function hasGDPRConsent() {
   return true;
 }
 
-function checkTCFv1(vendorData) {
-  let vendorConsent = vendorData.vendorConsents && vendorData.vendorConsents[QUANTCAST_VENDOR_ID];
-  let purposeConsent = vendorData.purposeConsents && vendorData.purposeConsents[PURPOSE_DATA_COLLECT] ;
+export function checkTCFv1(vendorData) {
+  var vendorConsent = vendorData.vendorConsents && vendorData.vendorConsents[QUANTCAST_VENDOR_ID];
+  var purposeConsent = vendorData.purposeConsents && vendorData.purposeConsents[PURPOSE_DATA_COLLECT];
 
   return !!(vendorConsent && purposeConsent);
 }
 
-function checkTCFv2(tcData) {
-  let vendorConsent = tcData.vendor && tcData.vendor.consents && tcData.vendor.consents[QUANTCAST_VENDOR_ID];
-  let vendorInterest = vendorData.vendor.legitimateInterests && vendorData.vendor.legitimateInterests[QUANTCAST_VENDOR_ID];
-  let restrictions = tcData.publisher ? tcData.publisher.restrictions : {};
+export function checkTCFv2(vendorData) {
+  var vendorConsent = vendorData.vendor && vendorData.vendor.consents && vendorData.vendor.consents[QUANTCAST_VENDOR_ID];
+  var vendorInterest = vendorData.vendor.legitimateInterests && vendorData.vendor.legitimateInterests[QUANTCAST_VENDOR_ID];
+  var restrictions = vendorData.publisher ? vendorData.publisher.restrictions : {};
 
-  //Restrictions for purpose 1
-  let qcRestriction = restrictions && restrictions[PURPOSE_DATA_COLLECT]
+  // Restrictions for purpose 1
+  var qcRestriction = restrictions && restrictions[PURPOSE_DATA_COLLECT]
     ? restrictions[PURPOSE_DATA_COLLECT][QUANTCAST_VENDOR_ID]
     : null;
 
-  let purposeConsent = tcData.purpose && tcData.purpose.consents && tcData.purpose.consents[PURPOSE_DATA_COLLECT];
+  var purposeConsent = vendorData.purpose && vendorData.purpose.consents && vendorData.purpose.consents[PURPOSE_DATA_COLLECT];
 
   // No consent, not allowed by publisher or requires legitimate interest
   if (!vendorConsent || !purposeConsent || qcRestriction === 0 || qcRestriction === 2) {
     return false;
   }
 
-  //Restrictions for purpose 10
+  // Restrictions for purpose 10
   qcRestriction = restrictions && restrictions[PURPOSE_PRODUCT_IMPROVEMENT]
     ? restrictions[PURPOSE_PRODUCT_IMPROVEMENT][QUANTCAST_VENDOR_ID]
     : null;
@@ -134,10 +127,10 @@ function checkTCFv2(tcData) {
 
   // publisher has explicitly restricted to consent
   if (qcRestriction === 1) {
-    purposeConsent = tcData.purpose && tcData.purpose.consents && tcData.purpose.consents[PURPOSE_PRODUCT_IMPROVEMENT];
+    purposeConsent = vendorData.purpose && vendorData.purpose.consents && vendorData.purpose.consents[PURPOSE_PRODUCT_IMPROVEMENT];
 
     // No consent, or requires legitimate interest
-    if (!vendorConsent || !purposeConsent ) {
+    if (!vendorConsent || !purposeConsent) {
       return false;
     }
   } else if (qcRestriction === 2) {
@@ -156,11 +149,9 @@ function checkTCFv2(tcData) {
  * tests if us_privacy consent string is present, us_privacy applies, and do-not-sell is not set
  * @returns {boolean}
  */
- function hasCCPAConsent() {
-  const consentData = uspDataHandler.getConsentData();
-
+function hasCCPAConsent(usPrivacyConsent) {
   // TODO : Needs to be revisited
-  if (consentData && consentData !== '1---') {
+  if (usPrivacyConsent && usPrivacyConsent !== '1---') {
     return false
   }
   return true;
@@ -189,13 +180,12 @@ export const quantcastIdSubmodule = {
    * @returns {{id: {quantcastId: string} | undefined}}}
    */
   getId(config) {
-  
     // Consent signals are currently checked on the server side.
     let fpa = storage.getCookie(QUANTCAST_FPA);
 
     const coppa = coppaDataHandler.getCoppa();
     if (coppa) {
-      utils.logInfo('QuantcastId: IDs not provided for coppa requests, exiting QuantcastId');
+      logInfo('QuantcastId: IDs not provided for coppa requests, exiting QuantcastId');
       return;
     }
 
