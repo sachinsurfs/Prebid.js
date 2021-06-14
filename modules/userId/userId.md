@@ -12,6 +12,16 @@ pbjs.setConfig({
                 expires: 60
             }
         }, {
+            name: 'dmdId',
+            storage: {
+                name: 'dmd-dgid',
+                type: 'cookie',
+                expires: 30
+            },
+            params: {
+                api_key: '3fdbe297-3690-4f5c-9e11-ee9186a6d77c', // provided by DMD
+            }
+        }, {
             name: "unifiedId",
             params: {
                 partner: "prebid",
@@ -26,7 +36,7 @@ pbjs.setConfig({
             name: "id5Id",
             params: {
                 partner: 173,         // Set your real ID5 partner ID here for production, please ask for one at https://id5.io/universal-id
-                pd: "some-pd-string"  // See https://wiki.id5.io/x/BIAZ for details
+                pd: "some-pd-string"  // See https://support.id5.io/portal/en/kb/articles/passing-partner-data-to-id5 for details
             },
             storage: {
                 type: "html5",        // ID5 requires html5
@@ -43,7 +53,8 @@ pbjs.setConfig({
         }, {
             name: 'identityLink',
             params: {
-                pid: '999' // Set your real identityLink placement ID here
+                pid: '999', // Set your real identityLink placement ID here
+                // notUse3P: true // true/false - If you do not want to use 3P endpoint to retrieve envelope. If you do not set this property to true, 3p endpoint will be fired. By default this property is undefined and 3p request will be fired.
             },
             storage: {
                 type: 'cookie',
@@ -60,16 +71,6 @@ pbjs.setConfig({
                 name: '_li_pbid',
                 expires: 60
             }
-        }, {
-             name: 'sharedId',
-              params: {
-                    syncTime: 60 // in seconds, default is 24 hours
-               },
-             storage: {
-                 type: 'cookie',
-                 name: 'sharedid',
-                 expires: 28
-              }
         }, {
              name: 'criteo',
              storage: {             // It is best not to specify this parameter since the module needs to be called as many times as possible
@@ -96,7 +97,7 @@ pbjs.setConfig({
                 type: "cookie",
                 name: "merkleId",
                 expires: 30
-            } 
+            }
         },{
             name: 'uid2'
         }
@@ -112,6 +113,11 @@ pbjs.setConfig({
                   name: '__adm__admixer',
                   expires: 30
               }
+        },{
+              name: 'flocId',
+               params: {
+                    token: "Registered token or default sharedid.org token" // Default sharedid.org token: "A3dHTSoNUMjjERBLlrvJSelNnwWUCwVQhZ5tNQ+sll7y+LkPPVZXtB77u2y7CweRIxiYaGwGXNlW1/dFp8VMEgIAAAB+eyJvcmlnaW4iOiJodHRwczovL3NoYXJlZGlkLm9yZzo0NDMiLCJmZWF0dXJlIjoiSW50ZXJlc3RDb2hvcnRBUEkiLCJleHBpcnkiOjE2MjYyMjA3OTksImlzU3ViZG9tYWluIjp0cnVlLCJpc1RoaXJkUGFydHkiOnRydWV9"
+           }
         }],
         syncDelay: 5000,
         auctionDelay: 1000
@@ -144,7 +150,8 @@ pbjs.setConfig({
         }, {
             name: 'identityLink',
             params: {
-                pid: '999' // Set your real identityLink placement ID here
+                pid: '999', // Set your real identityLink placement ID here
+                // notUse3P: true // true/false - If you do not want to use 3P endpoint to retrieve envelope. If you do not set this property to true, 3p endpoint will be fired. By default this property is undefined and 3p request will be fired.
             },
             storage: {
                 type: 'html5',
@@ -175,7 +182,7 @@ pbjs.setConfig({
             name: 'id5Id',
             params: {
                 partner: 173,         // Set your real ID5 partner ID here for production, please ask for one at https://id5.io/universal-id
-                pd: 'some-pd-string'  // See https://wiki.id5.io/x/BIAZ for details
+                pd: 'some-pd-string'  // See https://support.id5.io/portal/en/kb/articles/passing-partner-data-to-id5 for details
             },
             storage: {
                 type: 'html5',
@@ -207,7 +214,7 @@ pbjs.setConfig({
                 type: "html5",
                 name: "merkleId",
                 expires: 30
-            } 
+            }
         }, {
               name: 'admixerId',
               params: {
@@ -220,6 +227,25 @@ pbjs.setConfig({
                   name: 'admixerId',
                   expires: 30
               }
+       },{
+              name: 'flocId',
+               params: {
+               token: "Registered token or default sharedid.org token" // Default sharedid.org token: "A3dHTSoNUMjjERBLlrvJSelNnwWUCwVQhZ5tNQ+sll7y+LkPPVZXtB77u2y7CweRIxiYaGwGXNlW1/dFp8VMEgIAAAB+eyJvcmlnaW4iOiJodHRwczovL3NoYXJlZGlkLm9yZzo0NDMiLCJmZWF0dXJlIjoiSW50ZXJlc3RDb2hvcnRBUEkiLCJleHBpcnkiOjE2MjYyMjA3OTksImlzU3ViZG9tYWluIjp0cnVlLCJpc1RoaXJkUGFydHkiOnRydWV9"
+        }
+        },{
+            name: "deepintentId",
+            storage: {
+                type: "html5",
+                name: "_dpes_id",
+                expires: 90
+            }
+        },{
+            name: "deepintentId",
+            storage: {
+                type: "cookie",
+                name: "_dpes_id",
+                expires: 90
+            }
         }],
         syncDelay: 5000
     }
