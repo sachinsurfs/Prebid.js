@@ -96,6 +96,12 @@ const USER_IDS_CONFIG = {
     atype: 3
   },
 
+  // dmdId
+  'dmdId': {
+    source: 'hcn.health',
+    atype: 3
+  },
+
   // lotamePanoramaId
   lotamePanoramaId: {
     source: 'crwdcntrl.net',
@@ -126,20 +132,6 @@ const USER_IDS_CONFIG = {
   'netId': {
     source: 'netid.de',
     atype: 1
-  },
-
-  // sharedid
-  'sharedid': {
-    source: 'sharedid.org',
-    atype: 1,
-    getValue: function(data) {
-      return data.id;
-    },
-    getUidExt: function(data) {
-      return (data && data.third) ? {
-        third: data.third
-      } : undefined;
-    }
   },
 
   // zeotapIdPlus
@@ -207,7 +199,10 @@ const USER_IDS_CONFIG = {
       return data.id;
     }
   },
-
+  'deepintentId': {
+    source: 'deepintent.com',
+    atype: 3
+  },
   // Admixer Id
   'admixerId': {
     source: 'admixer.net',
